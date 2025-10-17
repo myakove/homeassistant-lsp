@@ -19,7 +19,7 @@ npm install -g homeassistant-lsp
 Or install locally:
 
 ```bash
-git clone https://github.com/yourusername/homeassistant-lsp.git
+git clone https://github.com/myakove/homeassistant-lsp.git
 cd homeassistant-lsp
 npm install
 npm run build
@@ -171,5 +171,5 @@ MIT
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/yourusername/homeassistant-lsp/issues)
-- Discussions: [GitHub Discussions](https://github.com/yourusername/homeassistant-lsp/discussions)
+- Issues: [GitHub Issues](https://github.com/myakove/homeassistant-lsp/issues)
+- Discussions: [GitHub Discussions](https://github.com/myakove/homeassistant-lsp/discussions)
