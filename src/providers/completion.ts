@@ -131,12 +131,13 @@ export class CompletionProvider {
     for (const entity of entities) {
       // Filter by domain if provided
       if (hasDot) {
-        const [entityDomain] = entity.entity_id.split('.');
-        if (!entityDomain.startsWith(domainPrefix)) {
+        const [entityDomain, entityName] = entity.entity_id.split('.');
+        // Domain must match exactly (not startsWith)
+        if (entityDomain !== domainPrefix) {
           continue;
         }
-        // Check entity name part
-        if (entityPrefix && !entity.entity_id.toLowerCase().includes(entityPrefix.toLowerCase())) {
+        // Filter entity name part if provided
+        if (entityPrefix && !entityName.toLowerCase().includes(entityPrefix.toLowerCase())) {
           continue;
         }
       } else {

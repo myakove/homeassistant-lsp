@@ -301,9 +301,16 @@ export class CommandHandler {
         }
       }
 
+      // Enhance entities with domain and name fields
+      const enhancedEntities = filteredEntities.map((entity) => ({
+        ...entity,
+        domain: entity.entity_id.split('.')[0],
+        name: entity.attributes?.friendly_name || entity.entity_id,
+      }));
+
       return {
         success: true,
-        data: filteredEntities,
+        data: enhancedEntities,
       };
     } catch (error) {
       return {
