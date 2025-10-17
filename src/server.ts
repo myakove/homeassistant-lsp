@@ -64,8 +64,19 @@ connection.onInitialize((params: InitializeParams) => {
   if (params.initializationOptions) {
     serverConfig = params.initializationOptions as ServerConfig;
     connection.console.log(
-      `Configuration received: host=${serverConfig?.homeassistant?.host ? 'provided' : 'missing'}, token=${serverConfig?.homeassistant?.token ? 'provided' : 'missing'}`
+      `Configuration received via initializationOptions:`
     );
+    connection.console.log(
+      `  - host: ${serverConfig?.homeassistant?.host ? serverConfig.homeassistant.host : 'MISSING'}`
+    );
+    connection.console.log(
+      `  - token: ${serverConfig?.homeassistant?.token ? '***PROVIDED***' : 'MISSING'}`
+    );
+    connection.console.log(
+      `  - timeout: ${serverConfig?.homeassistant?.timeout || 'default (5000ms)'}`
+    );
+  } else {
+    connection.console.warn('No initializationOptions provided by client');
   }
 
   const result: InitializeResult = {
@@ -129,37 +140,35 @@ connection.onInitialized(async () => {
 
   // Validate configuration
   if (!serverConfig?.homeassistant?.host || !serverConfig?.homeassistant?.token) {
-    connection.window.showErrorMessage(
-      'Home Assistant LSP Server: Missing configuration. Please provide homeassistant.host and homeassistant.token'
-    );
+    // Log error but DO NOT show UI prompts (blocks Neovim)
     connection.console.error(
       'Missing required configuration: homeassistant.host and homeassistant.token'
     );
-  } else {
-    // Initialize Home Assistant client and services
-    try {
-      haClient = new HomeAssistantClient();
-      cache = getCache();
-      commandHandler = new CommandHandler(haClient, cache);
+    connection.console.error(
+      'Please provide configuration via initializationOptions or workspace settings'
+    );
+    return; // Exit early without initializing
+  }
 
-      // Connect to Home Assistant
-      await haClient.connect(
-        serverConfig.homeassistant.host,
-        serverConfig.homeassistant.token
-      );
+  // Initialize Home Assistant client and services
+  try {
+    haClient = new HomeAssistantClient();
+    cache = getCache();
+    commandHandler = new CommandHandler(haClient, cache);
 
-      connection.console.log('Home Assistant LSP Server initialized successfully');
-      connection.console.log('Connected to Home Assistant');
-      connection.window.showInformationMessage(
-        'Home Assistant LSP Server is ready'
-      );
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      connection.console.error(`Failed to connect to Home Assistant: ${errorMsg}`);
-      connection.window.showErrorMessage(
-        `Failed to connect to Home Assistant: ${errorMsg}`
-      );
-    }
+    // Connect to Home Assistant
+    await haClient.connect(
+      serverConfig.homeassistant.host,
+      serverConfig.homeassistant.token
+    );
+
+    connection.console.log('Home Assistant LSP Server initialized successfully');
+    connection.console.log(`Connected to Home Assistant at ${serverConfig.homeassistant.host}`);
+    // NO UI prompts - silent initialization for better Neovim integration
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    connection.console.error(`Failed to connect to Home Assistant: ${errorMsg}`);
+    // Log error but DO NOT show UI prompts
   }
 });
 
