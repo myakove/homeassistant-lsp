@@ -18,6 +18,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HomeAssistantClient } from './ha-client';
 import { Cache, getCache } from './cache';
 import { CommandHandler } from './commands';
+import { CompletionProvider } from './providers/completion';
+import { HoverProvider } from './providers/hover';
+import { DiagnosticsProvider } from './providers/diagnostics';
 
 // Server configuration interface
 interface ServerConfig {
@@ -41,10 +44,13 @@ let serverConfig: ServerConfig | null = null;
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
 
-// Initialize Home Assistant client, cache, and command handler
+// Initialize Home Assistant client, cache, command handler, and providers
 let haClient: HomeAssistantClient | null = null;
 let cache: Cache | null = null;
 let commandHandler: CommandHandler | null = null;
+let completionProvider: CompletionProvider | null = null;
+let hoverProvider: HoverProvider | null = null;
+let diagnosticsProvider: DiagnosticsProvider | null = null;
 
 /**
  * Initialize the LSP server
@@ -164,6 +170,13 @@ connection.onInitialized(async () => {
 
     connection.console.log('Home Assistant LSP Server initialized successfully');
     connection.console.log(`Connected to Home Assistant at ${serverConfig.homeassistant.host}`);
+
+    // Initialize providers
+    completionProvider = new CompletionProvider(haClient, cache);
+    hoverProvider = new HoverProvider(haClient, cache);
+    diagnosticsProvider = new DiagnosticsProvider(haClient, cache);
+
+    connection.console.log('LSP providers initialized');
     // NO UI prompts - silent initialization for better Neovim integration
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -181,6 +194,52 @@ connection.onDidChangeConfiguration((change) => {
       homeassistant: change.settings.homeassistant,
     };
     connection.console.log('Configuration updated');
+  }
+});
+
+/**
+ * Completion handler
+ */
+connection.onCompletion(async (params) => {
+  if (!completionProvider) {
+    connection.console.warn('Completion provider not initialized');
+    return [];
+  }
+
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  try {
+    return await completionProvider.provideCompletionItems(document, params);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    connection.console.error(`Completion error: ${errorMsg}`);
+    return [];
+  }
+});
+
+/**
+ * Hover handler
+ */
+connection.onHover(async (params) => {
+  if (!hoverProvider) {
+    connection.console.warn('Hover provider not initialized');
+    return null;
+  }
+
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return null;
+  }
+
+  try {
+    return await hoverProvider.provideHover(document, params);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    connection.console.error(`Hover error: ${errorMsg}`);
+    return null;
   }
 });
 
@@ -218,18 +277,29 @@ connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
 /**
  * Document opened event
  */
-documents.onDidOpen((event) => {
+documents.onDidOpen(async (event) => {
   connection.console.log(
     `Document opened: ${event.document.uri} (${event.document.languageId})`
   );
+  
+  // Run diagnostics on open
+  if (diagnosticsProvider) {
+    const diagnostics = await diagnosticsProvider.validateDocument(event.document);
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
+  }
 });
 
 /**
  * Document changed event
  */
-documents.onDidChangeContent((event) => {
+documents.onDidChangeContent(async (event) => {
   connection.console.log(`Document changed: ${event.document.uri}`);
-  // Diagnostics will be triggered here when implemented
+  
+  // Run diagnostics on change (with debouncing)
+  if (diagnosticsProvider) {
+    const diagnostics = await diagnosticsProvider.validateDocument(event.document);
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
+  }
 });
 
 /**
@@ -237,6 +307,9 @@ documents.onDidChangeContent((event) => {
  */
 documents.onDidClose((event) => {
   connection.console.log(`Document closed: ${event.document.uri}`);
+  
+  // Clear diagnostics on close
+  connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
 /**
