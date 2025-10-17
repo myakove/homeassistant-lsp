@@ -96,26 +96,37 @@ export class CommandHandler {
 
     const dashboards = await this.haClient.getDashboards();
 
-    // Filter for editable dashboards (storage mode only)
-    // Exclude:
-    // 1. YAML mode dashboards (not user-editable via UI)
-    // 2. Panel/iframe/webview dashboards (no mode field or special patterns)
-    const editableDashboards = dashboards.filter((d) => {
-      // Must be storage mode (user-managed, editable)
-      if (d.mode !== 'storage') {
-        return false;
+    // Filter for user-managed dashboards
+    // User-managed dashboards have a "views" array in their config
+    // Iframe/auto-generated dashboards have a "strategy" field instead
+    const editableDashboards = [];
+
+    for (const dashboard of dashboards) {
+      // Must be storage mode
+      if (dashboard.mode !== 'storage') {
+        continue;
       }
 
-      // Exclude panel dashboards (iframe/webview)
-      // Panel dashboards typically have url_path starting with special prefixes
-      // or are identified by specific patterns in id
-      const panelPrefixes = ['lovelace-', 'states', 'config', 'developer-tools'];
-      const isPanelDashboard = panelPrefixes.some((prefix) => 
-        d.url_path?.startsWith(prefix) || d.id?.startsWith(prefix)
-      );
+      try {
+        const config = await this.haClient.getDashboardConfig(dashboard.url_path);
 
-      return !isPanelDashboard;
-    });
+        // Dashboards with "strategy" are iframe or auto-generated (exclude them)
+        if (config.strategy) {
+          logger.debug(`Excluding dashboard with strategy: ${dashboard.title} (${config.strategy.type})`);
+          continue;
+        }
+
+        // Dashboards with "views" array are user-managed (include them)
+        if (config.views && Array.isArray(config.views)) {
+          logger.debug(`Including user-managed dashboard: ${dashboard.title} (${config.views.length} views)`);
+          editableDashboards.push(dashboard);
+        }
+      } catch (error) {
+        logger.warn(`Could not fetch config for dashboard ${dashboard.title}: ${error}`);
+      }
+    }
+
+    logger.debug(`Filtered ${editableDashboards.length} editable dashboards from ${dashboards.length} total`);
 
     return {
       success: true,
