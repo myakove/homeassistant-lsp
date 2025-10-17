@@ -7,16 +7,17 @@
     "homeassistant-lsp": "dist/server.js"
   },
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "dev": "tsc --watch",
+    "build": "node node_modules/typescript/bin/tsc",
+    "watch": "node node_modules/typescript/bin/tsc --watch",
+    "dev": "node node_modules/typescript/bin/tsc --watch",
     "start": "node dist/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
-    "clean": "rm -rf dist"
+    "test": "node node_modules/jest/bin/jest.js",
+    "test:watch": "node node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node node_modules/jest/bin/jest.js --coverage",
+    "lint": "node node_modules/eslint/bin/eslint.js src/**/*.ts",
+    "lint:fix": "node node_modules/eslint/bin/eslint.js src/**/*.ts --fix",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "homeassistant",
@@ -29,6 +30,11 @@
     "completion",
     "hover",
     "diagnostics"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "author": "",
   "license": "MIT",
