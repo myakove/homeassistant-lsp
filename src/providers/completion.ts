@@ -48,19 +48,24 @@ export class CompletionProvider {
     position: TextDocumentPositionParams
   ): Promise<CompletionItem[]> {
     try {
-      const line = document.getText({
-        start: { line: position.position.line, character: 0 },
-        end: { line: position.position.line + 1, character: 0 },
-      });
+      // Get the full document text and extract the current line
+      const fullText = document.getText();
+      const lines = fullText.split('\n');
+      const currentLine = lines[position.position.line] || '';
 
       const cursorPos = position.position.character;
-      const textBeforeCursor = line.substring(0, cursorPos);
+      const textBeforeCursor = currentLine.substring(0, cursorPos);
 
       // Detect completion context
       const context = this.detectContext(textBeforeCursor);
       const prefix = this.extractPrefix(textBeforeCursor);
 
-      logger.debug('Completion requested', { context, prefix, line: textBeforeCursor });
+      logger.debug('Completion requested', { 
+        context, 
+        prefix, 
+        line: textBeforeCursor,
+        hasDot: prefix.includes('.')
+      });
 
       switch (context) {
         case CompletionContext.ENTITY_ID:
@@ -85,27 +90,23 @@ export class CompletionProvider {
    * Detect completion context from line text
    */
   private detectContext(text: string): CompletionContext {
-    // Entity ID patterns
-    if (
-      /entity_id:\s*["']?[\w.]*$/.test(text) ||
-      /entity:\s*["']?[\w.]*$/.test(text) ||
-      /get_state\(["'][\w.]*$/.test(text) ||
-      /states\(["'][\w.]*$/.test(text)
-    ) {
+    // Extract the last word/token before cursor
+    const match = text.match(/([\w.]+)$/);
+    if (!match) {
+      return CompletionContext.UNKNOWN;
+    }
+
+    const token = match[1];
+
+    // If token contains a dot, it's domain.entity format
+    // e.g., "light." or "sensor.temp"
+    if (token.includes('.')) {
       return CompletionContext.ENTITY_ID;
     }
 
-    // Service patterns
-    if (/service:\s*["']?[\w.]*$/.test(text) || /call_service\(["'][\w.]*$/.test(text)) {
-      return CompletionContext.SERVICE;
-    }
-
-    // Domain patterns (when we have a word but no dot yet)
-    if (/[\w_]{3,}$/.test(text) && !/\./.test(text.match(/[\w_]{3,}$/)![0])) {
-      return CompletionContext.DOMAIN;
-    }
-
-    return CompletionContext.UNKNOWN;
+    // Otherwise, it's just text - suggest domains
+    // e.g., "light" or "sen" or "input"
+    return CompletionContext.DOMAIN;
   }
 
   /**
