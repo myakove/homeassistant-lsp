@@ -11,9 +11,13 @@ import {
   InitializeParams,
   InitializeResult,
   TextDocumentSyncKind,
+  ExecuteCommandParams,
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { HomeAssistantClient } from './ha-client';
+import { Cache, getCache } from './cache';
+import { CommandHandler } from './commands';
 
 // Server configuration interface
 interface ServerConfig {
@@ -36,6 +40,11 @@ let serverConfig: ServerConfig | null = null;
 // Server state
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
+
+// Initialize Home Assistant client, cache, and command handler
+let haClient: HomeAssistantClient | null = null;
+let cache: Cache | null = null;
+let commandHandler: CommandHandler | null = null;
 
 /**
  * Initialize the LSP server
@@ -69,6 +78,18 @@ connection.onInitialize((params: InitializeParams) => {
       },
       // Enable hover provider
       hoverProvider: true,
+      // Enable execute command provider
+      executeCommandProvider: {
+        commands: [
+          'homeassistant.listDashboards',
+          'homeassistant.getDashboardConfig',
+          'homeassistant.saveDashboardConfig',
+          'homeassistant.reloadCache',
+          'homeassistant.getConnectionStatus',
+          'homeassistant.getEntityState',
+          'homeassistant.callService',
+        ],
+      },
       // Diagnostic provider will be implemented later
       // diagnosticProvider: {
       //   interFileDependencies: false,
@@ -112,10 +133,30 @@ connection.onInitialized(async () => {
       'Missing required configuration: homeassistant.host and homeassistant.token'
     );
   } else {
-    connection.console.log('Home Assistant LSP Server initialized successfully');
-    connection.window.showInformationMessage(
-      'Home Assistant LSP Server is ready'
-    );
+    // Initialize Home Assistant client and services
+    try {
+      haClient = new HomeAssistantClient();
+      cache = getCache();
+      commandHandler = new CommandHandler(haClient, cache);
+
+      // Connect to Home Assistant
+      await haClient.connect(
+        serverConfig.homeassistant.host,
+        serverConfig.homeassistant.token
+      );
+
+      connection.console.log('Home Assistant LSP Server initialized successfully');
+      connection.console.log('Connected to Home Assistant');
+      connection.window.showInformationMessage(
+        'Home Assistant LSP Server is ready'
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      connection.console.error(`Failed to connect to Home Assistant: ${errorMsg}`);
+      connection.window.showErrorMessage(
+        `Failed to connect to Home Assistant: ${errorMsg}`
+      );
+    }
   }
 });
 
@@ -128,6 +169,37 @@ connection.onDidChangeConfiguration((change) => {
       homeassistant: change.settings.homeassistant,
     };
     connection.console.log('Configuration updated');
+  }
+});
+
+/**
+ * Execute command handler
+ */
+connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
+  try {
+    connection.console.log(`Execute command: ${params.command}`);
+
+    if (!commandHandler) {
+      return {
+        success: false,
+        error: 'Command handler not initialized',
+      };
+    }
+
+    const result = await commandHandler.executeCommand(
+      params.command,
+      params.arguments
+    );
+
+    connection.console.log(`Command result: ${JSON.stringify(result)}`);
+    return result;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    connection.console.error(`Command execution error: ${errorMsg}`);
+    return {
+      success: false,
+      error: errorMsg,
+    };
   }
 });
 
@@ -160,7 +232,16 @@ documents.onDidClose((event) => {
  */
 connection.onShutdown(() => {
   connection.console.log('Server shutting down...');
-  // Cleanup will be added here (close WebSocket connections, etc.)
+  
+  // Cleanup: disconnect Home Assistant client
+  if (haClient) {
+    haClient.disconnect();
+  }
+  
+  // Cleanup: destroy cache
+  if (cache) {
+    cache.destroy();
+  }
 });
 
 /**
