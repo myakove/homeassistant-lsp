@@ -1,0 +1,332 @@
+/**
+ * Completion Provider
+ * Provides auto-completion for entities, services, and domains
+ */
+
+import {
+  CompletionItem,
+  CompletionItemKind,
+  TextDocumentPositionParams,
+  MarkupKind,
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { HomeAssistantClient } from '../ha-client';
+import { Cache, CacheKeys } from '../cache';
+import { Entity, Services } from '../types/homeassistant';
+import { getLogger } from '../utils/logger';
+
+const logger = getLogger('CompletionProvider');
+
+/**
+ * Completion context types
+ */
+enum CompletionContext {
+  ENTITY_ID = 'entity_id',
+  DOMAIN = 'domain',
+  SERVICE = 'service',
+  UNKNOWN = 'unknown',
+}
+
+/**
+ * Completion Provider
+ */
+export class CompletionProvider {
+  private haClient: HomeAssistantClient;
+  private cache: Cache;
+
+  constructor(haClient: HomeAssistantClient, cache: Cache, _minChars: number = 3) {
+    this.haClient = haClient;
+    this.cache = cache;
+    // minChars can be used in future for filtering logic
+  }
+
+  /**
+   * Provide completion items
+   */
+  async provideCompletionItems(
+    document: TextDocument,
+    position: TextDocumentPositionParams
+  ): Promise<CompletionItem[]> {
+    try {
+      const line = document.getText({
+        start: { line: position.position.line, character: 0 },
+        end: { line: position.position.line + 1, character: 0 },
+      });
+
+      const cursorPos = position.position.character;
+      const textBeforeCursor = line.substring(0, cursorPos);
+
+      // Detect completion context
+      const context = this.detectContext(textBeforeCursor);
+      const prefix = this.extractPrefix(textBeforeCursor);
+
+      logger.debug('Completion requested', { context, prefix, line: textBeforeCursor });
+
+      switch (context) {
+        case CompletionContext.ENTITY_ID:
+          return this.completeEntityId(prefix);
+
+        case CompletionContext.DOMAIN:
+          return this.completeDomain(prefix);
+
+        case CompletionContext.SERVICE:
+          return this.completeService(prefix);
+
+        default:
+          return [];
+      }
+    } catch (error) {
+      logger.error('Completion provider error', error);
+      return [];
+    }
+  }
+
+  /**
+   * Detect completion context from line text
+   */
+  private detectContext(text: string): CompletionContext {
+    // Entity ID patterns
+    if (
+      /entity_id:\s*["']?[\w.]*$/.test(text) ||
+      /entity:\s*["']?[\w.]*$/.test(text) ||
+      /get_state\(["'][\w.]*$/.test(text) ||
+      /states\(["'][\w.]*$/.test(text)
+    ) {
+      return CompletionContext.ENTITY_ID;
+    }
+
+    // Service patterns
+    if (/service:\s*["']?[\w.]*$/.test(text) || /call_service\(["'][\w.]*$/.test(text)) {
+      return CompletionContext.SERVICE;
+    }
+
+    // Domain patterns (when we have a word but no dot yet)
+    if (/[\w_]{3,}$/.test(text) && !/\./.test(text.match(/[\w_]{3,}$/)![0])) {
+      return CompletionContext.DOMAIN;
+    }
+
+    return CompletionContext.UNKNOWN;
+  }
+
+  /**
+   * Extract the prefix for filtering
+   */
+  private extractPrefix(text: string): string {
+    // Match word characters, dots, and underscores at the end
+    const match = text.match(/[\w._]*$/);
+    return match ? match[0] : '';
+  }
+
+  /**
+   * Complete entity IDs
+   */
+  private async completeEntityId(prefix: string): Promise<CompletionItem[]> {
+    const entities = await this.getEntities();
+    const items: CompletionItem[] = [];
+
+    // If prefix contains a dot, it's domain.entity format
+    const hasDot = prefix.includes('.');
+    const [domainPrefix, entityPrefix] = hasDot ? prefix.split('.') : [prefix, ''];
+
+    for (const entity of entities) {
+      // Filter by domain if provided
+      if (hasDot) {
+        const [entityDomain] = entity.entity_id.split('.');
+        if (!entityDomain.startsWith(domainPrefix)) {
+          continue;
+        }
+        // Check entity name part
+        if (entityPrefix && !entity.entity_id.toLowerCase().includes(entityPrefix.toLowerCase())) {
+          continue;
+        }
+      } else {
+        // No dot yet, filter by prefix
+        if (prefix && !entity.entity_id.toLowerCase().startsWith(prefix.toLowerCase())) {
+          continue;
+        }
+      }
+
+      const friendlyName = entity.attributes.friendly_name || entity.entity_id;
+      const state = entity.state;
+      const unit = entity.attributes.unit_of_measurement || '';
+
+      items.push({
+        label: entity.entity_id,
+        kind: CompletionItemKind.Value,
+        detail: `${friendlyName} (${state}${unit ? ' ' + unit : ''})`,
+        documentation: {
+          kind: MarkupKind.Markdown,
+          value: this.formatEntityDocumentation(entity),
+        },
+        insertText: entity.entity_id,
+        sortText: entity.entity_id,
+      });
+    }
+
+    logger.debug(`Entity completion: ${items.length} items for prefix "${prefix}"`);
+    return items.slice(0, 50); // Limit to 50 items
+  }
+
+  /**
+   * Complete domain names
+   */
+  private async completeDomain(prefix: string): Promise<CompletionItem[]> {
+    const entities = await this.getEntities();
+    const domains = new Set<string>();
+
+    // Extract unique domains
+    for (const entity of entities) {
+      const [domain] = entity.entity_id.split('.');
+      domains.add(domain);
+    }
+
+    const items: CompletionItem[] = [];
+
+    for (const domain of Array.from(domains).sort()) {
+      if (prefix && !domain.toLowerCase().startsWith(prefix.toLowerCase())) {
+        continue;
+      }
+
+      // Count entities in this domain
+      const count = entities.filter((e) => e.entity_id.startsWith(domain + '.')).length;
+
+      items.push({
+        label: domain,
+        kind: CompletionItemKind.Module,
+        detail: `${count} entities`,
+        documentation: {
+          kind: MarkupKind.Markdown,
+          value: `Home Assistant domain: **${domain}**\n\nContains ${count} entities.`,
+        },
+        insertText: domain + '.',
+        sortText: domain,
+      });
+    }
+
+    logger.debug(`Domain completion: ${items.length} items for prefix "${prefix}"`);
+    return items;
+  }
+
+  /**
+   * Complete service calls
+   */
+  private async completeService(prefix: string): Promise<CompletionItem[]> {
+    const services = await this.getServices();
+    const items: CompletionItem[] = [];
+
+    // If prefix contains a dot, it's domain.service format
+    const hasDot = prefix.includes('.');
+    const [domainPrefix, servicePrefix] = hasDot ? prefix.split('.') : [prefix, ''];
+
+    for (const [domain, domainServices] of Object.entries(services)) {
+      // Filter by domain if provided
+      if (hasDot && !domain.startsWith(domainPrefix)) {
+        continue;
+      }
+
+      for (const [serviceName, service] of Object.entries(domainServices)) {
+        const fullServiceName = `${domain}.${serviceName}`;
+
+        // Filter by prefix
+        if (hasDot) {
+          if (servicePrefix && !serviceName.toLowerCase().includes(servicePrefix.toLowerCase())) {
+            continue;
+          }
+        } else {
+          if (prefix && !fullServiceName.toLowerCase().startsWith(prefix.toLowerCase())) {
+            continue;
+          }
+        }
+
+        const description = service.description || service.name || '';
+
+        items.push({
+          label: fullServiceName,
+          kind: CompletionItemKind.Function,
+          detail: description,
+          documentation: {
+            kind: MarkupKind.Markdown,
+            value: this.formatServiceDocumentation(domain, serviceName, service),
+          },
+          insertText: fullServiceName,
+          sortText: fullServiceName,
+        });
+      }
+    }
+
+    logger.debug(`Service completion: ${items.length} items for prefix "${prefix}"`);
+    return items.slice(0, 50); // Limit to 50 items
+  }
+
+  /**
+   * Get entities from cache or Home Assistant
+   */
+  private async getEntities(): Promise<Entity[]> {
+    return this.cache.getOrFetch(
+      CacheKeys.ENTITIES,
+      () => this.haClient.getStates(),
+      300 // 5 minutes TTL
+    );
+  }
+
+  /**
+   * Get services from cache or Home Assistant
+   */
+  private async getServices(): Promise<Services> {
+    return this.cache.getOrFetch(
+      CacheKeys.SERVICES,
+      () => this.haClient.getServices(),
+      600 // 10 minutes TTL
+    );
+  }
+
+  /**
+   * Format entity documentation
+   */
+  private formatEntityDocumentation(entity: Entity): string {
+    const friendlyName = entity.attributes.friendly_name || entity.entity_id;
+    const [domain] = entity.entity_id.split('.');
+    const unit = entity.attributes.unit_of_measurement || '';
+
+    let doc = `**${friendlyName}**\n\n`;
+    doc += `**Entity ID:** \`${entity.entity_id}\`\n\n`;
+    doc += `**Domain:** ${domain}\n\n`;
+    doc += `**State:** ${entity.state}${unit ? ' ' + unit : ''}\n\n`;
+
+    // Add key attributes
+    const importantAttrs = ['device_class', 'unit_of_measurement', 'icon'];
+    const attrs: string[] = [];
+    for (const attr of importantAttrs) {
+      if (entity.attributes[attr]) {
+        attrs.push(`- **${attr}:** ${entity.attributes[attr]}`);
+      }
+    }
+
+    if (attrs.length > 0) {
+      doc += `**Attributes:**\n${attrs.join('\n')}\n`;
+    }
+
+    return doc;
+  }
+
+  /**
+   * Format service documentation
+   */
+  private formatServiceDocumentation(domain: string, serviceName: string, service: any): string {
+    let doc = `**${domain}.${serviceName}**\n\n`;
+
+    if (service.description) {
+      doc += `${service.description}\n\n`;
+    }
+
+    if (service.fields && Object.keys(service.fields).length > 0) {
+      doc += `**Fields:**\n`;
+      for (const [fieldName, field] of Object.entries<any>(service.fields)) {
+        const required = field.required ? ' *(required)*' : '';
+        doc += `- **${fieldName}**${required}: ${field.description || ''}\n`;
+      }
+    }
+
+    return doc;
+  }
+}

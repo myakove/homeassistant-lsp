@@ -1,0 +1,65 @@
+[
+  {
+    "entity_id": "sensor.temperature",
+    "state": "22.5",
+    "attributes": {
+      "friendly_name": "Living Room Temperature",
+      "unit_of_measurement": "°C",
+      "device_class": "temperature",
+      "icon": "mdi:thermometer"
+    },
+    "last_changed": "2024-01-15T10:00:00Z",
+    "last_updated": "2024-01-15T10:05:00Z",
+    "context": {
+      "id": "abc123",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "light.bedroom",
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Bedroom Light",
+      "brightness": 255,
+      "supported_features": 43,
+      "icon": "mdi:lightbulb"
+    },
+    "last_changed": "2024-01-15T09:00:00Z",
+    "last_updated": "2024-01-15T09:00:00Z",
+    "context": {
+      "id": "def456",
+      "parent_id": null,
+      "user_id": "user123"
+    }
+  },
+  {
+    "entity_id": "switch.outlet",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Outlet Switch",
+      "icon": "mdi:power-socket"
+    },
+    "last_changed": "2024-01-15T08:00:00Z",
+    "last_updated": "2024-01-15T08:00:00Z",
+    "context": {
+      "id": "ghi789",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.unavailable",
+    "state": "unavailable",
+    "attributes": {
+      "friendly_name": "Unavailable Sensor"
+    },
+    "last_changed": "2024-01-15T07:00:00Z",
+    "last_updated": "2024-01-15T07:00:00Z",
+    "context": {
+      "id": "jkl012",
+      "parent_id": null,
+      "user_id": null
+    }
+  }
+]

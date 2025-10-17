@@ -1,0 +1,58 @@
+{
+  "light": {
+    "turn_on": {
+      "domain": "light",
+      "service": "turn_on",
+      "name": "Turn on",
+      "description": "Turn on one or more lights",
+      "fields": {
+        "entity_id": {
+          "description": "Name(s) of entities to turn on",
+          "required": true
+        },
+        "brightness": {
+          "description": "Number indicating brightness",
+          "required": false
+        }
+      }
+    },
+    "turn_off": {
+      "domain": "light",
+      "service": "turn_off",
+      "name": "Turn off",
+      "description": "Turn off one or more lights",
+      "fields": {
+        "entity_id": {
+          "description": "Name(s) of entities to turn off",
+          "required": true
+        }
+      }
+    }
+  },
+  "switch": {
+    "turn_on": {
+      "domain": "switch",
+      "service": "turn_on",
+      "name": "Turn on",
+      "description": "Turn on a switch",
+      "fields": {
+        "entity_id": {
+          "description": "Name(s) of entities to turn on",
+          "required": true
+        }
+      }
+    },
+    "turn_off": {
+      "domain": "switch",
+      "service": "turn_off",
+      "name": "Turn off",
+      "description": "Turn off a switch",
+      "fields": {
+        "entity_id": {
+          "description": "Name(s) of entities to turn off",
+          "required": true
+        }
+      }
+    }
+  }
+}
