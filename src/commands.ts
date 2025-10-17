@@ -175,12 +175,32 @@ export class CommandHandler {
     if (!args || args.length < 1) {
       return {
         success: false,
-        error: 'Missing config parameter',
+        error: 'Missing parameters',
       };
     }
 
-    const config = args[0];
-    const urlPath = args.length > 1 ? args[1] : undefined;
+    // Support both argument orders:
+    // Option 1: [config, urlPath] (config first)
+    // Option 2: [urlPath, config] (urlPath first)
+    let config: any;
+    let urlPath: string | undefined;
+
+    if (args.length === 1) {
+      // Single argument must be config
+      config = args[0];
+      urlPath = undefined;
+    } else {
+      // Two arguments - detect which is which
+      if (typeof args[0] === 'string') {
+        // First arg is string (urlPath), second is config
+        urlPath = args[0];
+        config = args[1];
+      } else {
+        // First arg is object (config), second is urlPath
+        config = args[0];
+        urlPath = args[1];
+      }
+    }
 
     // Validate config structure
     if (!config || typeof config !== 'object') {
