@@ -1,6 +1,6 @@
 {
   "name": "homeassistant-lsp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Language Server Protocol server for Home Assistant - provides auto-completion, hover info, diagnostics for any LSP-compatible editor",
   "main": "dist/server.js",
   "bin": {
