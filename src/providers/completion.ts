@@ -122,16 +122,34 @@ export class CompletionProvider {
    */
   private async completeEntityId(prefix: string): Promise<CompletionItem[]> {
     const entities = await this.getEntities();
+    
+    if (!entities || entities.length === 0) {
+      logger.warn('No entities available for completion');
+      return [];
+    }
+
+    logger.debug(`Entity completion: fetched ${entities.length} entities, prefix="${prefix}"`);
     const items: CompletionItem[] = [];
 
     // If prefix contains a dot, it's domain.entity format
     const hasDot = prefix.includes('.');
     const [domainPrefix, entityPrefix] = hasDot ? prefix.split('.') : [prefix, ''];
 
+    logger.debug(`Entity completion: hasDot=${hasDot}, domainPrefix="${domainPrefix}", entityPrefix="${entityPrefix}"`);
+
     for (const entity of entities) {
+      if (!entity || !entity.entity_id) {
+        continue;
+      }
+
       // Filter by domain if provided
       if (hasDot) {
-        const [entityDomain, entityName] = entity.entity_id.split('.');
+        const parts = entity.entity_id.split('.');
+        if (parts.length < 2) {
+          continue; // Invalid entity_id format
+        }
+        const [entityDomain, entityName] = parts;
+        
         // Domain must match exactly (not startsWith)
         if (entityDomain !== domainPrefix) {
           continue;
@@ -147,9 +165,9 @@ export class CompletionProvider {
         }
       }
 
-      const friendlyName = entity.attributes.friendly_name || entity.entity_id;
-      const state = entity.state;
-      const unit = entity.attributes.unit_of_measurement || '';
+      const friendlyName = entity.attributes?.friendly_name || entity.entity_id;
+      const state = entity.state || 'unknown';
+      const unit = entity.attributes?.unit_of_measurement || '';
 
       items.push({
         label: entity.entity_id,
@@ -164,7 +182,7 @@ export class CompletionProvider {
       });
     }
 
-    logger.debug(`Entity completion: ${items.length} items for prefix "${prefix}"`);
+    logger.debug(`Entity completion: ${items.length} items matched for prefix "${prefix}"`);
     return items.slice(0, 50); // Limit to 50 items
   }
 

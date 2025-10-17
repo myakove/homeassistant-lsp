@@ -96,8 +96,26 @@ export class CommandHandler {
 
     const dashboards = await this.haClient.getDashboards();
 
-    // Filter for editable dashboards (storage mode)
-    const editableDashboards = dashboards.filter((d) => d.mode === 'storage');
+    // Filter for editable dashboards (storage mode only)
+    // Exclude:
+    // 1. YAML mode dashboards (not user-editable via UI)
+    // 2. Panel/iframe/webview dashboards (no mode field or special patterns)
+    const editableDashboards = dashboards.filter((d) => {
+      // Must be storage mode (user-managed, editable)
+      if (d.mode !== 'storage') {
+        return false;
+      }
+
+      // Exclude panel dashboards (iframe/webview)
+      // Panel dashboards typically have url_path starting with special prefixes
+      // or are identified by specific patterns in id
+      const panelPrefixes = ['lovelace-', 'states', 'config', 'developer-tools'];
+      const isPanelDashboard = panelPrefixes.some((prefix) => 
+        d.url_path?.startsWith(prefix) || d.id?.startsWith(prefix)
+      );
+
+      return !isPanelDashboard;
+    });
 
     return {
       success: true,

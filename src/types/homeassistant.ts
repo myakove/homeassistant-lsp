@@ -52,6 +52,8 @@ export interface Dashboard {
   require_admin: boolean;
   show_in_sidebar: boolean;
   mode: 'storage' | 'yaml';
+  // Panel dashboards (iframe/webview) typically don't have mode set
+  // or have additional identifying fields
 }
 
 export interface DashboardConfig {
