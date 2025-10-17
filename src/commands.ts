@@ -56,6 +56,15 @@ export class CommandHandler {
         case 'homeassistant.getEntityState':
           return await this.getEntityState(args);
 
+        case 'homeassistant.listEntities':
+          return await this.listEntities(args);
+
+        case 'homeassistant.listServices':
+          return await this.listServices();
+
+        case 'homeassistant.listAreas':
+          return await this.listAreas();
+
         case 'homeassistant.callService':
           return await this.callService(args);
 
@@ -248,6 +257,111 @@ export class CommandHandler {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get entity state',
+      };
+    }
+  }
+
+  /**
+   * List all entities
+   */
+  private async listEntities(args?: any[]): Promise<CommandResult> {
+    if (!this.haClient.isConnected()) {
+      return {
+        success: false,
+        error: 'Not connected to Home Assistant',
+      };
+    }
+
+    try {
+      const entities = await this.haClient.getStates();
+
+      // Optional filtering
+      let filteredEntities = entities;
+
+      if (args && args.length > 0) {
+        const filters = args[0];
+
+        // Filter by domain
+        if (filters.domain) {
+          filteredEntities = filteredEntities.filter((e) =>
+            e.entity_id.startsWith(filters.domain + '.')
+          );
+        }
+
+        // Filter by search term (entity_id or friendly_name)
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          filteredEntities = filteredEntities.filter((e) => {
+            const friendlyName = (e.attributes.friendly_name || '').toLowerCase();
+            return (
+              e.entity_id.toLowerCase().includes(searchLower) ||
+              friendlyName.includes(searchLower)
+            );
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: filteredEntities,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list entities',
+      };
+    }
+  }
+
+  /**
+   * List all services
+   */
+  private async listServices(): Promise<CommandResult> {
+    if (!this.haClient.isConnected()) {
+      return {
+        success: false,
+        error: 'Not connected to Home Assistant',
+      };
+    }
+
+    try {
+      const services = await this.haClient.getServices();
+      return {
+        success: true,
+        data: services,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list services',
+      };
+    }
+  }
+
+  /**
+   * List all areas
+   */
+  private async listAreas(): Promise<CommandResult> {
+    if (!this.haClient.isConnected()) {
+      return {
+        success: false,
+        error: 'Not connected to Home Assistant',
+      };
+    }
+
+    try {
+      // Areas are fetched from the area registry
+      // For now, we'll return an empty array as the WebSocket client
+      // doesn't have an areas method yet. This can be added later.
+      logger.warn('listAreas not yet fully implemented - area registry API needed');
+      return {
+        success: true,
+        data: [],
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list areas',
       };
     }
   }
