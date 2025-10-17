@@ -25,12 +25,76 @@ npm install
 npm run build
 ```
 
+## Testing Locally (Before Global Install)
+
+If you want to test the LSP server before installing globally:
+
+1. **Clone and build:**
+   ```bash
+   git clone https://github.com/myakove/homeassistant-lsp.git
+   cd homeassistant-lsp
+   npm install
+   npm run build
+   npm test  # Verify all tests pass
+   ```
+
+2. **Test with Neovim (local path):**
+   ```lua
+   local lspconfig = require('lspconfig')
+   local configs = require('lspconfig.configs')
+   
+   if not configs.homeassistant then
+     configs.homeassistant = {
+       default_config = {
+         -- Use local build instead of global install
+         cmd = { 'node', vim.fn.expand('~/git/homeassistant-lsp/dist/server.js'), '--stdio' },
+         filetypes = { 'yaml', 'yaml.homeassistant', 'python' },
+         root_dir = lspconfig.util.root_pattern('.git', 'configuration.yaml'),
+         settings = {
+           homeassistant = {
+             host = 'ws://homeassistant.local:8123/api/websocket',
+             token = 'your-long-lived-access-token',
+           },
+         },
+       },
+     }
+   end
+   
+   lspconfig.homeassistant.setup({})
+   ```
+
+3. **Verify it works:**
+   - Open a YAML or Python file
+   - Type `entity_id: sensor.` and check for completions
+   - Hover over an entity ID to see info
+
+Once verified, you can install globally with `npm install -g .` from the project directory.
+
 ## Configuration
 
 The LSP server requires connection details to your Home Assistant instance:
 
 - `homeassistant.host` (required): WebSocket URL (e.g., `ws://homeassistant.local:8123/api/websocket`)
 - `homeassistant.token` (required): Long-lived access token
+
+### Environment Variables
+
+The LSP server supports environment variable overrides for configuration:
+
+- `HA_HOST` - Home Assistant WebSocket URL
+- `HA_TOKEN` - Long-lived access token
+- `HA_TIMEOUT` - Request timeout in milliseconds (default: 5000)
+- `LOG_LEVEL` - Logging level: DEBUG, INFO, WARN, ERROR (default: INFO)
+
+Example:
+```bash
+export HA_HOST="ws://192.168.1.10:8123/api/websocket"
+export HA_TOKEN="your_token_here"
+export LOG_LEVEL="DEBUG"
+nvim configuration.yaml
+```
+
+These override values provided in the LSP client settings.
 
 ### Neovim Setup
 
@@ -44,7 +108,7 @@ if not configs.homeassistant then
   configs.homeassistant = {
     default_config = {
       cmd = { 'homeassistant-lsp', '--stdio' },
-      filetypes = { 'yaml', 'yaml.homeassistant' },
+      filetypes = { 'yaml', 'yaml.homeassistant', 'python' },
       root_dir = lspconfig.util.root_pattern('.git', 'configuration.yaml'),
       settings = {
         homeassistant = {
@@ -98,6 +162,97 @@ Use LSP commands to manage dashboards:
 - `homeassistant.listDashboards` - List all editable dashboards
 - `homeassistant.getDashboardConfig` - Get dashboard configuration
 - `homeassistant.saveDashboardConfig` - Save dashboard changes
+
+### Python/AppDaemon Support
+
+The LSP also works with Python files for AppDaemon automations:
+
+```python
+# In your AppDaemon apps
+import appdaemon.plugins.hass.hassapi as hass
+
+class MyApp(hass.Hass):
+    def initialize(self):
+        # Completion works here
+        self.get_state("sensor.")  # <-- Completion triggers
+        self.call_service("light.")  # <-- Completion triggers
+        
+        # Hover works too
+        temp = self.get_state("sensor.temperature")  # <-- Hover for entity info
+```
+
+Supported Python patterns:
+- `get_state("entity_id")` - Auto-completion and hover
+- `call_service("domain.service")` - Service completion
+- `set_state("entity_id")` - Entity completion
+- Template strings: `f"The temperature is {self.get_state('sensor.temp')}"`
+
+The LSP detects entity IDs in:
+- Function call arguments
+- String literals
+- F-strings and format strings
+
+## Troubleshooting
+
+### Server Not Connecting
+
+1. **Check LSP is running:**
+   ```bash
+   # In Neovim
+   :LspInfo
+   ```
+   You should see `homeassistant` client attached.
+
+2. **Check connection to Home Assistant:**
+   ```vim
+   :lua vim.lsp.buf.execute_command({command='homeassistant.getConnectionStatus'})
+   ```
+
+3. **Check LSP logs:**
+   
+   Neovim LSP logs location: `~/.local/state/nvim/lsp.log`
+   ```bash
+   tail -f ~/.local/state/nvim/lsp.log
+   ```
+   
+   Enable debug logging:
+   ```lua
+   vim.lsp.set_log_level("DEBUG")
+   ```
+
+### No Completions Appearing
+
+- Ensure you're in a YAML or Python file
+- Try manual trigger: Type `entity_id: ` and press `<C-Space>`
+- Check if LSP server is connected to Home Assistant (see above)
+- Verify completion is enabled in your LSP client config
+
+### Diagnostics Not Working
+
+- Diagnostics are debounced (500ms delay after last edit)
+- Check if file is saved (some editors only run diagnostics on save)
+- Verify the LSP server is connected to Home Assistant
+- Check LSP logs for validation errors
+
+### Common Issues
+
+**"Entity not found" errors for valid entities:**
+- The entity might not be loaded yet - try reloading cache:
+  ```vim
+  :lua vim.lsp.buf.execute_command({command='homeassistant.reloadCache'})
+  ```
+- Check if entity is actually available in Home Assistant
+
+**High CPU/memory usage:**
+- Large entity lists can impact performance
+- Consider adjusting cache TTL in configuration
+- Check for rapid document changes triggering constant validation
+
+**WebSocket connection errors:**
+- Verify the WebSocket URL is correct (should start with `ws://` or `wss://`)
+- Check if Home Assistant is accessible from your machine
+- Verify the long-lived access token is valid
+- Check firewall settings
 
 ## Development
 
