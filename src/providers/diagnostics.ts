@@ -144,12 +144,52 @@ export class DiagnosticsProvider {
 
     for (let lineNum = 0; lineNum < lines.length; lineNum++) {
       const line = lines[lineNum];
+      
+      // Skip comments
+      if (line.trim().startsWith('#')) {
+        continue;
+      }
+
       let match;
 
       while ((match = entityIdPattern.exec(line)) !== null) {
         const entityId = match[0];
         const startChar = match.index;
         const endChar = startChar + entityId.length;
+
+        // Skip if it's part of a file path or URL
+        // Check for common patterns that are NOT entity IDs:
+        // - File paths: contains / or \ before or after
+        // - File extensions: the match itself ends with common extensions
+        // - URLs: preceded by :// or http
+        const beforeMatch = line.substring(Math.max(0, startChar - 10), startChar);
+        const afterMatch = line.substring(endChar, Math.min(line.length, endChar + 10));
+
+        // Skip if the entity_id itself looks like a filename
+        // (e.g., "settings.yaml", "config.json")
+        if (/\.(yaml|yml|json|xml|txt|md|py|js|ts|conf|cfg|ini|toml)$/.test(entityId)) {
+          continue;
+        }
+
+        // Skip if part of file path (has / or \ nearby)
+        if (beforeMatch.includes('/') || afterMatch.includes('/')) {
+          continue;
+        }
+
+        // Skip if followed by file extension
+        if (/^\.(yaml|yml|json|xml|txt|md|py|js|ts)/.test(afterMatch)) {
+          continue;
+        }
+
+        // Skip if part of URL or domain name
+        if (beforeMatch.includes('://') || beforeMatch.includes('http')) {
+          continue;
+        }
+
+        // Skip if it looks like a domain name (preceded by @ or followed by /)
+        if (beforeMatch.includes('@') || afterMatch.startsWith('/')) {
+          continue;
+        }
 
         references.push({
           entityId,
