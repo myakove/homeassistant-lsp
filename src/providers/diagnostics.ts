@@ -93,28 +93,17 @@ export class DiagnosticsProvider {
         const entity = entityMap.get(ref.entityId);
 
         if (!entity) {
-          // Check if it's a valid domain at least
-          const [domain] = ref.entityId.split('.');
-          const validDomains = this.getUniqueDomains(entities);
-
-          if (!validDomains.includes(domain)) {
-            diagnostics.push({
-              severity: DiagnosticSeverity.Error,
-              range: ref.range,
-              message: `Unknown domain '${domain}'`,
-              source: 'homeassistant-lsp',
-            });
-          } else {
-            diagnostics.push({
-              severity: DiagnosticSeverity.Error,
-              range: ref.range,
-              message: `Entity '${ref.entityId}' not found in Home Assistant`,
-              source: 'homeassistant-lsp',
-            });
-          }
+          // Entity not found - just report it's missing
+          // Don't check domain validity to avoid false positives
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning, // Changed to Warning instead of Error
+            range: ref.range,
+            message: `Entity '${ref.entityId}' not found in Home Assistant`,
+            source: 'homeassistant-lsp',
+          });
         } else if (entity.state === 'unavailable') {
           diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
+            severity: DiagnosticSeverity.Information, // Changed to Info for less noise
             range: ref.range,
             message: `Entity '${ref.entityId}' is currently unavailable`,
             source: 'homeassistant-lsp',
@@ -150,6 +139,16 @@ export class DiagnosticsProvider {
         continue;
       }
 
+      // Skip lines with YAML tags (!secret, !include, etc.)
+      if (/!\w+/.test(line)) {
+        continue;
+      }
+
+      // Skip lines that look like file paths or config (too many false positives)
+      if (line.includes('/') || line.includes('://')) {
+        continue;
+      }
+
       let match;
 
       while ((match = entityIdPattern.exec(line)) !== null) {
@@ -157,37 +156,8 @@ export class DiagnosticsProvider {
         const startChar = match.index;
         const endChar = startChar + entityId.length;
 
-        // Skip if it's part of a file path or URL
-        // Check for common patterns that are NOT entity IDs:
-        // - File paths: contains / or \ before or after
-        // - File extensions: the match itself ends with common extensions
-        // - URLs: preceded by :// or http
-        const beforeMatch = line.substring(Math.max(0, startChar - 10), startChar);
-        const afterMatch = line.substring(endChar, Math.min(line.length, endChar + 10));
-
-        // Skip if the entity_id itself looks like a filename
-        // (e.g., "settings.yaml", "config.json")
+        // Simple check: skip if it has a file extension
         if (/\.(yaml|yml|json|xml|txt|md|py|js|ts|conf|cfg|ini|toml)$/.test(entityId)) {
-          continue;
-        }
-
-        // Skip if part of file path (has / or \ nearby)
-        if (beforeMatch.includes('/') || afterMatch.includes('/')) {
-          continue;
-        }
-
-        // Skip if followed by file extension
-        if (/^\.(yaml|yml|json|xml|txt|md|py|js|ts)/.test(afterMatch)) {
-          continue;
-        }
-
-        // Skip if part of URL or domain name
-        if (beforeMatch.includes('://') || beforeMatch.includes('http')) {
-          continue;
-        }
-
-        // Skip if it looks like a domain name (preceded by @ or followed by /)
-        if (beforeMatch.includes('@') || afterMatch.startsWith('/')) {
           continue;
         }
 
@@ -213,18 +183,6 @@ export class DiagnosticsProvider {
       () => this.haClient.getStates(),
       300 // 5 minutes TTL
     );
-  }
-
-  /**
-   * Get unique domains from entities
-   */
-  private getUniqueDomains(entities: Entity[]): string[] {
-    const domains = new Set<string>();
-    for (const entity of entities) {
-      const [domain] = entity.entity_id.split('.');
-      domains.add(domain);
-    }
-    return Array.from(domains);
   }
 
   /**
