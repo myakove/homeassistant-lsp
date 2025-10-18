@@ -20,7 +20,6 @@ import { Cache, getCache } from './cache';
 import { CommandHandler } from './commands';
 import { CompletionProvider } from './providers/completion';
 import { HoverProvider } from './providers/hover';
-import { DiagnosticsProvider } from './providers/diagnostics';
 
 // Server configuration interface
 interface ServerConfig {
@@ -50,7 +49,6 @@ let cache: Cache | null = null;
 let commandHandler: CommandHandler | null = null;
 let completionProvider: CompletionProvider | null = null;
 let hoverProvider: HoverProvider | null = null;
-let diagnosticsProvider: DiagnosticsProvider | null = null;
 
 /**
  * Initialize the LSP server
@@ -110,11 +108,6 @@ connection.onInitialize((params: InitializeParams) => {
           'homeassistant.callService',
         ],
       },
-      // Diagnostic provider will be implemented later
-      // diagnosticProvider: {
-      //   interFileDependencies: false,
-      //   workspaceDiagnostics: false
-      // },
     },
   };
 
@@ -174,7 +167,6 @@ connection.onInitialized(async () => {
     // Initialize providers
     completionProvider = new CompletionProvider(haClient, cache);
     hoverProvider = new HoverProvider(haClient, cache);
-    diagnosticsProvider = new DiagnosticsProvider(haClient, cache);
 
     connection.console.log('LSP providers initialized');
     // NO UI prompts - silent initialization for better Neovim integration
@@ -281,12 +273,6 @@ documents.onDidOpen(async (event) => {
   connection.console.log(
     `Document opened: ${event.document.uri} (${event.document.languageId})`
   );
-  
-  // Run diagnostics on open
-  if (diagnosticsProvider) {
-    const diagnostics = await diagnosticsProvider.validateDocument(event.document);
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
-  }
 });
 
 /**
@@ -294,12 +280,6 @@ documents.onDidOpen(async (event) => {
  */
 documents.onDidChangeContent(async (event) => {
   connection.console.log(`Document changed: ${event.document.uri}`);
-  
-  // Run diagnostics on change (with debouncing)
-  if (diagnosticsProvider) {
-    const diagnostics = await diagnosticsProvider.validateDocument(event.document);
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
-  }
 });
 
 /**
@@ -307,9 +287,6 @@ documents.onDidChangeContent(async (event) => {
  */
 documents.onDidClose((event) => {
   connection.console.log(`Document closed: ${event.document.uri}`);
-  
-  // Clear diagnostics on close
-  connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
 /**

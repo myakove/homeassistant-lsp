@@ -47,8 +47,7 @@ homeassistant-lsp/
 │   ├── commands.ts            # Custom commands
 │   ├── providers/
 │   │   ├── completion.ts      # Completion provider
-│   │   ├── hover.ts           # Hover provider
-│   │   └── diagnostics.ts     # Diagnostics provider
+│   │   └── hover.ts           # Hover provider
 │   ├── utils/
 │   │   ├── logger.ts          # Logging utility
 │   │   └── config.ts          # Configuration

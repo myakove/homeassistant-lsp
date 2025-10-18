@@ -1,7 +1,7 @@
 {
   "name": "homeassistant-lsp",
-  "version": "0.1.4",
-  "description": "Language Server Protocol server for Home Assistant - provides auto-completion, hover info, diagnostics for any LSP-compatible editor",
+  "version": "0.1.5",
+  "description": "Language Server Protocol server for Home Assistant - provides auto-completion and hover info for any LSP-compatible editor",
   "main": "dist/server.js",
   "bin": {
     "homeassistant-lsp": "dist/server.js"
@@ -28,8 +28,7 @@
     "vscode",
     "autocomplete",
     "completion",
-    "hover",
-    "diagnostics"
+    "hover"
   ],
   "files": [
     "dist",

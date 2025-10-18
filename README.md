@@ -6,7 +6,6 @@ A Language Server Protocol (LSP) implementation for Home Assistant that provides
 
 - **Auto-completion**: Entity IDs, service calls, and domain names
 - **Hover Information**: Real-time entity state and attributes
-- **Diagnostics**: Validate entity references against your Home Assistant instance
 - **Dashboard Commands**: Edit Lovelace dashboards via custom LSP commands
 - **Multi-editor Support**: Works with any LSP-compatible editor
 
@@ -151,12 +150,6 @@ Hover over any entity ID to see its current state and attributes:
 entity_id: sensor.temperature  # <-- Hover here for info
 ```
 
-### Diagnostics
-Invalid entity references are automatically highlighted:
-```yaml
-entity_id: sensor.nonexistent  # <-- Error: Entity not found
-```
-
 ### Custom Commands
 Use LSP commands to manage dashboards:
 - `homeassistant.listDashboards` - List all editable dashboards
@@ -227,13 +220,6 @@ The LSP detects entity IDs in:
 - Check if LSP server is connected to Home Assistant (see above)
 - Verify completion is enabled in your LSP client config
 
-### Diagnostics Not Working
-
-- Diagnostics are debounced (500ms delay after last edit)
-- Check if file is saved (some editors only run diagnostics on save)
-- Verify the LSP server is connected to Home Assistant
-- Check LSP logs for validation errors
-
 ### Common Issues
 
 **"Entity not found" errors for valid entities:**
@@ -286,8 +272,7 @@ homeassistant-lsp/
 │   ├── cache.ts            # Entity/service caching layer
 │   ├── providers/
 │   │   ├── completion.ts   # Completion provider
-│   │   ├── hover.ts        # Hover provider
-│   │   └── diagnostics.ts  # Diagnostics provider
+│   │   └── hover.ts        # Hover provider
 │   ├── utils/
 │   │   ├── logger.ts       # Logging utility
 │   │   └── config.ts       # Configuration management
@@ -307,7 +292,7 @@ The LSP server consists of several key components:
 1. **LSP Server Core**: Handles LSP protocol communication
 2. **WebSocket Client**: Connects to Home Assistant API
 3. **Caching Layer**: Caches entities and services for fast lookups
-4. **Providers**: Implement LSP features (completion, hover, diagnostics)
+4. **Providers**: Implement LSP features (completion, hover)
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 

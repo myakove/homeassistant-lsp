@@ -19,33 +19,33 @@ The Home Assistant LSP Server is built on a modular architecture with the follow
 │  │  • Document Synchronization                      │   │
 │  │  • Configuration Management                      │   │
 │  └──────────────────────────────────────────────────┘   │
-└─────┬────────────────┬──────────────────┬──────────────┘
-      │                │                  │
-      ▼                ▼                  ▼
-┌─────────────┐  ┌──────────┐      ┌──────────────┐
-│ Completion  │  │  Hover   │      │ Diagnostics  │
-│  Provider   │  │ Provider │      │   Provider   │
-└─────────────┘  └──────────┘      └──────────────┘
-      │                │                  │
-      └────────────────┴──────────────────┘
-                       │
-                       ▼
-              ┌────────────────┐
-              │  Cache Layer   │
-              │  (TTL-based)   │
-              └────────┬───────┘
-                       │
-                       ▼
-            ┌──────────────────────┐
-            │  Home Assistant      │
-            │  WebSocket Client    │
-            └──────────┬───────────┘
-                       │ WebSocket
-                       ▼
-            ┌──────────────────────┐
-            │   Home Assistant     │
-            │    Server (API)      │
-            └──────────────────────┘
+└─────┬────────────────┬─────────────────────────────────┘
+      │                │
+      ▼                ▼
+┌─────────────┐  ┌──────────┐
+│ Completion  │  │  Hover   │
+│  Provider   │  │ Provider │
+└─────────────┘  └──────────┘
+      │                │
+      └────────────────┘
+                │
+                ▼
+       ┌────────────────┐
+       │  Cache Layer   │
+       │  (TTL-based)   │
+       └────────┬───────┘
+                │
+                ▼
+     ┌──────────────────────┐
+     │  Home Assistant      │
+     │  WebSocket Client    │
+     └──────────┬───────────┘
+                │ WebSocket
+                ▼
+     ┌──────────────────────┐
+     │   Home Assistant     │
+     │    Server (API)      │
+     └──────────────────────┘
 ```
 
 ## Core Components
@@ -141,18 +141,6 @@ const CacheKeys = {
 4. Key attributes
 5. Timestamps (relative time)
 
-#### Diagnostics Provider (`providers/diagnostics.ts`)
-
-**Responsibilities:**
-- Parse documents for entity references
-- Validate against Home Assistant entities
-- Generate error/warning diagnostics
-- Debounced validation
-
-**Diagnostic Types:**
-1. **Error**: Entity not found, unknown domain
-2. **Warning**: Entity unavailable
-
 ### 5. Utilities
 
 #### Logger (`utils/logger.ts`)
@@ -199,27 +187,7 @@ User types → LSP Client → onCompletion Request
                   Return CompletionItem[]
 ```
 
-### 2. Diagnostics Flow
-
-```
-Document Change → Debounce Timer (500ms)
-                           ↓
-                  Extract Entity IDs
-                           ↓
-                   Fetch Entities (cache)
-                           ↓
-              ┌────────────┴────────────┐
-              ↓                         ↓
-       Validate Domains          Validate Entities
-              ↓                         ↓
-              └────────────┬────────────┘
-                           ↓
-                  Generate Diagnostics
-                           ↓
-                   Return Diagnostic[]
-```
-
-### 3. WebSocket Communication
+### 2. WebSocket Communication
 
 ```
 HA Client → WebSocket.send(message)
@@ -260,11 +228,10 @@ Clear timeout      Remove from pending
 
 ### Optimization Techniques
 
-1. **Debouncing**: Diagnostics delayed 500ms
-2. **Result Limiting**: Max 50 completion items
-3. **Lazy Loading**: Cache miss triggers fetch
-4. **Background Cleanup**: Expired entries removed periodically
-5. **Connection Pooling**: Single WebSocket connection
+1. **Result Limiting**: Max 50 completion items
+2. **Lazy Loading**: Cache miss triggers fetch
+3. **Background Cleanup**: Expired entries removed periodically
+4. **Connection Pooling**: Single WebSocket connection
 
 ## Security Considerations
 
