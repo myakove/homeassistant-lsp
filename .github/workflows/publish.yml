@@ -8,6 +8,7 @@ on:
       - 'package.json'
       - 'src/**'
       - 'tests/**'
+      - '.github/workflows/**'
 
 jobs:
   publish:
