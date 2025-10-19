@@ -13,6 +13,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow pushing tags
+      id-token: write  # For NPM provenance
     
     steps:
       - name: Checkout code
