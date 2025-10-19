@@ -63,3 +63,23 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "v${{ steps.check.outputs.version }}" -m "Release v${{ steps.check.outputs.version }}"
           git push origin "v${{ steps.check.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.should_publish == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.check.outputs.version }}
+          release_name: v${{ steps.check.outputs.version }}
+          body: |
+            ## Changes in v${{ steps.check.outputs.version }}
+            
+            Published to NPM: https://www.npmjs.com/package/homeassistant-lsp/v/${{ steps.check.outputs.version }}
+            
+            ### Installation
+            ```bash
+            npm install -g homeassistant-lsp@${{ steps.check.outputs.version }}
+            ```
+          draft: false
+          prerelease: false
