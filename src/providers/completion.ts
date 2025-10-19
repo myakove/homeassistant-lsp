@@ -155,8 +155,8 @@ export class CompletionProvider {
         if (entityDomain !== domainPrefix) {
           continue;
         }
-        // Filter entity name part if provided
-        if (entityPrefix && !entityName.toLowerCase().includes(entityPrefix.toLowerCase())) {
+        // Filter entity name part if provided (use startsWith for proper prefix matching)
+        if (entityPrefix && !entityName.toLowerCase().startsWith(entityPrefix.toLowerCase())) {
           continue;
         }
       } else {
@@ -247,9 +247,9 @@ export class CompletionProvider {
       for (const [serviceName, service] of Object.entries(domainServices)) {
         const fullServiceName = `${domain}.${serviceName}`;
 
-        // Filter by prefix
+        // Filter by prefix (use startsWith for proper prefix matching)
         if (hasDot) {
-          if (servicePrefix && !serviceName.toLowerCase().includes(servicePrefix.toLowerCase())) {
+          if (servicePrefix && !serviceName.toLowerCase().startsWith(servicePrefix.toLowerCase())) {
             continue;
           }
         } else {
