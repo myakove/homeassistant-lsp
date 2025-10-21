@@ -68,7 +68,7 @@ describe('CompletionProvider', () => {
   beforeEach(() => {
     mockClient = new MockHomeAssistantClient();
     mockCache = new MockCache();
-    completionProvider = new CompletionProvider(mockClient, mockCache, 0);
+    completionProvider = new CompletionProvider(mockClient, mockCache);
   });
 
   describe('Entity ID Prefix Matching', () => {
@@ -295,6 +295,111 @@ describe('CompletionProvider', () => {
       // Should return domains starting with 's' (sensor, switch)
       expect(completions.length).toBe(2);
       expect(completions.map((c) => c.label).sort()).toEqual(['sensor', 'switch']);
+    });
+  });
+
+  describe('Invalid Entity ID Patterns', () => {
+    beforeEach(() => {
+      const mockEntities: Entity[] = [
+        {
+          entity_id: 'sensor.temperature',
+          state: '22',
+          attributes: { friendly_name: 'Temperature Sensor' },
+          last_changed: '',
+          last_updated: '',
+          context: { id: '', parent_id: null, user_id: null },
+        },
+        {
+          entity_id: 'light.bedroom',
+          state: 'on',
+          attributes: { friendly_name: 'Bedroom Light' },
+          last_changed: '',
+          last_updated: '',
+          context: { id: '', parent_id: null, user_id: null },
+        },
+      ];
+
+      mockClient.setMockEntities(mockEntities);
+    });
+
+    test('should NOT provide completions for double dots (sensor..)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, 'sensor..');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 8 }, // After "sensor.."
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return empty array for invalid pattern
+      expect(completions.length).toBe(0);
+    });
+
+    test('should NOT provide completions for just double dots (..)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, '..');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 2 }, // After ".."
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return empty array for invalid pattern
+      expect(completions.length).toBe(0);
+    });
+
+    test('should NOT provide completions for double dots in middle (sensor..temp)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, 'sensor..temp');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 12 }, // After "sensor..temp"
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return empty array for invalid pattern
+      expect(completions.length).toBe(0);
+    });
+
+    test('should NOT provide completions for pattern starting with dot (.sensor)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, '.sensor');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 7 }, // After ".sensor"
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return empty array for invalid pattern
+      expect(completions.length).toBe(0);
+    });
+
+    test('should provide completions for valid single dot pattern (sensor.)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, 'sensor.');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 7 }, // After "sensor."
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return sensor entities for valid pattern
+      expect(completions.length).toBe(1);
+      expect(completions[0].label).toBe('sensor.temperature');
+    });
+
+    test('should provide completions for valid entity pattern (light.bed)', async () => {
+      const document = TextDocument.create('test://test.yaml', 'yaml', 1, 'light.bed');
+      const position = {
+        textDocument: { uri: 'test://test.yaml' },
+        position: { line: 0, character: 9 }, // After "light.bed"
+      };
+
+      const completions = await completionProvider.provideCompletionItems(document, position);
+
+      // Should return matching entity for valid pattern
+      expect(completions.length).toBe(1);
+      expect(completions[0].label).toBe('light.bedroom');
     });
   });
 });

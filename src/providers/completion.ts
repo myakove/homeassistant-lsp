@@ -34,10 +34,9 @@ export class CompletionProvider {
   private haClient: HomeAssistantClient;
   private cache: Cache;
 
-  constructor(haClient: HomeAssistantClient, cache: Cache, _minChars: number = 3) {
+  constructor(haClient: HomeAssistantClient, cache: Cache) {
     this.haClient = haClient;
     this.cache = cache;
-    // minChars can be used in future for filtering logic
   }
 
   /**
@@ -98,9 +97,14 @@ export class CompletionProvider {
 
     const token = match[1];
 
-    // If token contains a dot, it's domain.entity format
-    // e.g., "light." or "sensor.temp"
+    // If token contains a dot, validate it's a proper entity ID pattern
+    // Valid: "domain." or "domain.entity_name"
+    // Invalid: "domain.." or ".." or "domain..more"
     if (token.includes('.')) {
+      // Check for invalid patterns (double dots or empty parts)
+      if (token.includes('..') || token.startsWith('.') || token.endsWith('..')) {
+        return CompletionContext.UNKNOWN;
+      }
       return CompletionContext.ENTITY_ID;
     }
 
@@ -304,9 +308,9 @@ export class CompletionProvider {
    * Format entity documentation
    */
   private formatEntityDocumentation(entity: Entity): string {
-    const friendlyName = entity.attributes.friendly_name || entity.entity_id;
+    const friendlyName = entity.attributes?.friendly_name || entity.entity_id;
     const [domain] = entity.entity_id.split('.');
-    const unit = entity.attributes.unit_of_measurement || '';
+    const unit = entity.attributes?.unit_of_measurement || '';
 
     let doc = `**${friendlyName}**\n\n`;
     doc += `**Entity ID:** \`${entity.entity_id}\`\n\n`;
@@ -317,7 +321,7 @@ export class CompletionProvider {
     const importantAttrs = ['device_class', 'unit_of_measurement', 'icon'];
     const attrs: string[] = [];
     for (const attr of importantAttrs) {
-      if (entity.attributes[attr]) {
+      if (entity.attributes?.[attr]) {
         attrs.push(`- **${attr}:** ${entity.attributes[attr]}`);
       }
     }
