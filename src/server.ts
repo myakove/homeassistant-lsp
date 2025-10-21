@@ -115,6 +115,7 @@ connection.onInitialize((params: InitializeParams) => {
     result.capabilities.workspace = {
       workspaceFolders: {
         supported: true,
+        changeNotifications: true,
       },
     };
   }
@@ -131,11 +132,9 @@ connection.onInitialized(async () => {
     connection.console.log('Client supports configuration capability');
   }
 
-  if (hasWorkspaceFolderCapability) {
-    connection.workspace.onDidChangeWorkspaceFolders((_event) => {
-      connection.console.log('Workspace folder change event received.');
-    });
-  }
+  // Note: workspace folder change notifications are handled via capability declaration
+  // in onInitialize, not through dynamic registration here, to avoid triggering
+  // registerCapability when the client has dynamicRegistration set to false
 
   // Validate configuration
   if (!serverConfig?.homeassistant?.host || !serverConfig?.homeassistant?.token) {

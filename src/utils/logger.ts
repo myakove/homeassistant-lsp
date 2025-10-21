@@ -99,7 +99,22 @@ export class Logger {
 
     // Use LSP connection if available, otherwise fallback to stderr
     if (this.connection) {
-      this.connection.console.log(formattedMessage);
+      // Use the appropriate console method based on log level
+      switch (level) {
+        case LogLevel.ERROR:
+          this.connection.console.error(formattedMessage);
+          break;
+        case LogLevel.WARN:
+          this.connection.console.warn(formattedMessage);
+          break;
+        case LogLevel.INFO:
+          this.connection.console.info(formattedMessage);
+          break;
+        case LogLevel.DEBUG:
+        default:
+          this.connection.console.log(formattedMessage);
+          break;
+      }
     } else {
       // Write to stderr to avoid interfering with LSP protocol on stdout
       process.stderr.write(formattedMessage + '\n');
